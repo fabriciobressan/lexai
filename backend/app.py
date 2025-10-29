@@ -52,10 +52,10 @@ def ask_ai_agent():
         "contents": [{
             "parts": [{"text": prompt}]
         }],
-        # 💡 CORREÇÃO AQUI: Mudando 'config' para 'generationConfig'
         "generationConfig": {
             "temperature": 0.7,
-            "maxOutputTokens": 300 
+            # 💡 CORREÇÃO AQUI: Aumentando o limite máximo de tokens para 1024.
+            "maxOutputTokens": 1024 
         }
     }
 
@@ -73,38 +73,37 @@ def ask_ai_agent():
         
         gemini_response = response.json()
         
-        # Extrair o texto gerado
+        # Extrair o texto gerado (com acesso seguro)
         candidates = gemini_response.get('candidates')
         
-        # 💡 CORREÇÃO AQUI: Usando .get() para acessar de forma segura a estrutura aninhada
         if candidates:
-            # Acessa 'content' de forma segura
             content = candidates[0].get('content', {})
-            # Acessa 'parts' de forma segura
             parts = content.get('parts', [])
             
             if parts and parts[0].get('text'):
                 full_response = parts[0]['text']
             else:
-                 # Captura de erros de filtro de conteúdo, etc.
-                full_response = f"Desculpe, o Agente LexAI retornou uma estrutura de resposta válida, mas sem texto gerado (provavelmente devido a filtros de segurança ou prompt bloqueado). Detalhes: {str(gemini_response)}"
+                 # Se não houver texto gerado, checa o motivo (finishReason)
+                reason = candidates[0].get('finishReason', 'Motivo Desconhecido')
+                full_response = (
+                    f"Desculpe, a IA parou de gerar texto (Motivo: {reason}). "
+                    "Isso pode ocorrer por filtros de segurança ou o prompt ser muito longo. Tente outra pergunta."
+                )
         else:
-            # Captura de erros de filtro de conteúdo, etc.
-            full_response = f"Desculpe, o Agente LexAI não retornou candidatos de resposta (estrutura inválida ou falha no serviço). Detalhes: {str(gemini_response)}"
+            full_response = f"Desculpe, o Agente LexAI não retornou candidatos de resposta (falha no serviço). Detalhes: {str(gemini_response)}"
         
         print(f"Resposta obtida com sucesso do modelo {GEMINI_MODEL}.")
 
         return jsonify({"answer": full_response})
 
     except requests.exceptions.RequestException as e:
-        # --- Tratamento de Erros da API Gemini ---
+        # --- Tratamento de Erros de Comunicação ---
         error_details = "Erro de comunicação ou rede."
         status_code = "Desconhecido"
         
         if response is not None:
              status_code = response.status_code
              try:
-                 # Tenta ler o JSON de erro do Google (formato específico)
                  error_details = response.json().get('error', {}).get('message', 'Erro desconhecido da API.')
              except:
                  error_details = response.text
