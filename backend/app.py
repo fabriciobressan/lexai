@@ -34,7 +34,7 @@ def serve_index():
 @app.route('/api/ask', methods=['POST'])
 def ask_ai_agent():
     """
-    Recebe uma pergunta, envia para a Gemini API e retorna a resposta.
+    Recebe uma pergunta, envia para a LexAI e retorna a resposta.
     """
     data = request.get_json()
     prompt = data.get('prompt')
@@ -52,7 +52,8 @@ def ask_ai_agent():
         "contents": [{
             "parts": [{"text": prompt}]
         }],
-        "config": {
+        # 💡 CORREÇÃO AQUI: Mudando 'config' para 'generationConfig'
+        "generationConfig": {
             "temperature": 0.7,
             "maxOutputTokens": 300 
         }
@@ -79,7 +80,7 @@ def ask_ai_agent():
             full_response = candidates[0]['content']['parts'][0]['text']
         else:
             # Captura de erros de filtro de conteúdo, etc.
-            full_response = f"Desculpe, a Gemini API retornou um erro inesperado. Detalhes: {str(gemini_response)}"
+            full_response = f"Desculpe, o Agente LexAI retornou um erro inesperado. Detalhes: {str(gemini_response)}"
         
         print(f"Resposta obtida com sucesso do modelo {GEMINI_MODEL}.")
 
@@ -98,7 +99,7 @@ def ask_ai_agent():
              except:
                  error_details = response.text
 
-        error_msg = f"Houve um problema de comunicação com a Gemini API (Status {status_code}). Detalhes: {error_details}"
+        error_msg = f"Houve um problema de comunicação com o Agente LexAI (Status {status_code}). Detalhes: {error_details}"
         
         print(f"ERRO DE REQUISIÇÃO IA: {e}")
         return jsonify({"error": error_msg}), 500
