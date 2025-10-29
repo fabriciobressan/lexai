@@ -18,11 +18,11 @@ PORT = int(os.environ.get("PORT", 5001))
 # EX: HF_API_TOKEN
 HF_TOKEN = os.environ.get("HF_API_TOKEN") 
 
-# MODELO ESCOLHIDO no Hugging Face (ex: Mistral-7B)
-# Este é um bom modelo para free-tier de demonstração:
-HF_MODEL_NAME = "mistralai/Mistral-7B-Instruct-v0.2"
-# Endpoint genérico para o modelo
+# ⚠️ ALTERAÇÃO AQUI: Trocando para GPT-2 (mais estável no free Inference API)
+HF_MODEL_NAME = "openai-community/gpt2"
+# O endpoint é gerado com base no nome do modelo:
 HF_API_URL = f"https://api-inference.huggingface.co/models/{HF_MODEL_NAME}"
+
 
 # --- Rotas da Aplicação ---
 
@@ -64,7 +64,7 @@ def ask_ai_agent():
     payload = {
         "inputs": full_prompt,
         "parameters": {
-            "max_new_tokens": 250, # Limitar a resposta para não gastar muitos créditos
+            "max_new_tokens": 100, # Limitar a resposta para não gastar muitos créditos
             "temperature": 0.7,
             "return_full_text": False # Queremos apenas a parte gerada pela IA
         }
