@@ -75,12 +75,22 @@ def ask_ai_agent():
         
         # Extrair o texto gerado
         candidates = gemini_response.get('candidates')
+        
+        # 💡 CORREÇÃO AQUI: Usando .get() para acessar de forma segura a estrutura aninhada
         if candidates:
-            # A resposta está em candidates[0].content.parts[0].text
-            full_response = candidates[0]['content']['parts'][0]['text']
+            # Acessa 'content' de forma segura
+            content = candidates[0].get('content', {})
+            # Acessa 'parts' de forma segura
+            parts = content.get('parts', [])
+            
+            if parts and parts[0].get('text'):
+                full_response = parts[0]['text']
+            else:
+                 # Captura de erros de filtro de conteúdo, etc.
+                full_response = f"Desculpe, o Agente LexAI retornou uma estrutura de resposta válida, mas sem texto gerado (provavelmente devido a filtros de segurança ou prompt bloqueado). Detalhes: {str(gemini_response)}"
         else:
             # Captura de erros de filtro de conteúdo, etc.
-            full_response = f"Desculpe, o Agente LexAI retornou um erro inesperado. Detalhes: {str(gemini_response)}"
+            full_response = f"Desculpe, o Agente LexAI não retornou candidatos de resposta (estrutura inválida ou falha no serviço). Detalhes: {str(gemini_response)}"
         
         print(f"Resposta obtida com sucesso do modelo {GEMINI_MODEL}.")
 
