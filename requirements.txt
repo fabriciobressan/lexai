@@ -1,0 +1,4 @@
+Flask
+flask-cors
+requests
+gunicorn # Servidor web WSGI, necessário para deploy em nuvem

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LexAI v1.0</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f2f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        textarea {
+            width: 100%;
+            padding: 15px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            resize: vertical;
+            min-height: 100px;
+            font-size: 16px;
+        }
+        button {
+            background-color: #007aff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #response-area {
+            margin-top: 25px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #e9ecef;
+            white-space: pre-wrap; /* Preserva quebras de linha */
+        }
+        .status {
+            text-align: center;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>LexAI v1.0</h1>
+        <h6>by FBSolutions</h6>
+        <p>Faça sua pergunta:</p>
+
+        <textarea id="prompt-input" placeholder="Digite sua pergunta aqui..."></textarea>
+        
+        <button id="submit-button" onclick="sendPrompt()">Enviar Pergunta</button>
+        
+        <div id="status-message" class="status" style="color: blue;"></div>
+
+        <h2>✨ Resposta do Agente LexAI:</h2>
+        <div id="response-area">Aguardando sua pergunta...</div>
+    </div>
+
+    <script>
+        // O backend está rodando em http://localhost:5001
+        const API_ENDPOINT = 'http://localhost:5001/api/ask'; 
+
+        async function sendPrompt() {
+            const promptInput = document.getElementById('prompt-input');
+            const responseArea = document.getElementById('response-area');
+            const submitButton = document.getElementById('submit-button');
+            const statusMessage = document.getElementById('status-message');
+
+            const prompt = promptInput.value.trim();
+
+            if (prompt === "") {
+                alert("Por favor, digite uma pergunta.");
+                return;
+            }
+
+            // Desabilita o botão e mostra status de carregamento
+            submitButton.disabled = true;
+            statusMessage.textContent = 'Aguarde... agente LexAI está pensando...';
+            responseArea.textContent = 'Processando...';
+            statusMessage.style.color = 'orange';
+
+            try {
+                const response = await fetch(API_ENDPOINT, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ prompt: prompt })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    responseArea.textContent = data.answer;
+                    statusMessage.textContent = 'Pronto!';
+                    statusMessage.style.color = 'green';
+                } else {
+                    responseArea.textContent = `ERRO: ${data.error || 'Ocorreu um erro desconhecido no backend.'}`;
+                    statusMessage.textContent = 'Erro na Requisição.';
+                    statusMessage.style.color = 'red';
+                }
+
+            } catch (error) {
+                console.error('Erro de rede ou API:', error);
+                responseArea.textContent = `ERRO DE CONEXÃO: Não foi possível conectar ao servidor Flask (http://localhost:5001). Verifique se o 'python app.py' está rodando no terminal.`;
+                statusMessage.textContent = 'Erro de Conexão.';
+                statusMessage.style.color = 'red';
+            } finally {
+                // Reabilita o botão
+                submitButton.disabled = false;
+            }
+        }
+    </script>
+
+</body>
+</html>
