@@ -1,21 +1,20 @@
-# Usa uma imagem oficial Python
+# Arquivo: Dockerfile (CORREÇÃO DE CAMINHO)
+
 FROM python:3.11-slim
 
-# Define o diretório de trabalho
 WORKDIR /usr/src/app
 
-# Copia os arquivos de configuração do Flask e o frontend
+# Copia os arquivos de configuração do Flask
 COPY backend/app.py .
 COPY requirements.txt .
-COPY frontend/ frontend/
+
+# ⚠️ ALTERAÇÃO AQUI: Copia o conteúdo do frontend para a pasta 'static' padrão do Flask
+# Isso garante que a rota seja simples e que o Flask a encontre facilmente.
+COPY frontend/ static/
 
 # Instala as dependências
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expõe a porta que o Gunicorn irá usar
 EXPOSE 8080
 
-# Comando para rodar a aplicação usando Gunicorn.
-# O Gunicorn é o servidor web robusto que o Render usará no lugar do app.run() do Flask.
-# 'app:app' significa 'o objeto app dentro do módulo app.py'
 CMD gunicorn --bind 0.0.0.0:$PORT app:app
