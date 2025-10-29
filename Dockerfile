@@ -18,4 +18,4 @@ EXPOSE 8080
 # Comando para rodar a aplicação usando Gunicorn.
 # O Gunicorn é o servidor web robusto que o Render usará no lugar do app.run() do Flask.
 # 'app:app' significa 'o objeto app dentro do módulo app.py'
-CMD ["gunicorn", "--bind", "0.0.0.0:$PORT", "app:app"]
+CMD gunicorn --bind 0.0.0.0:$PORT app:app
