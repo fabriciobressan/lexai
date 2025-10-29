@@ -1,4 +1,4 @@
-# Arquivo: backend/app.py (Versão 6.0 para Hugging Face GPT2 Simples)
+# Arquivo: backend/app.py (Versão Final: Gemini API)
 
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
@@ -13,13 +13,14 @@ CORS(app)
 # --- Variáveis de Ambiente ---
 PORT = int(os.environ.get("PORT", 5001))
 
-# 🔑 CHAVE: Será lida da variável de ambiente no Render.
-HF_TOKEN = os.environ.get("HF_API_TOKEN") 
+# 🔑 CHAVE: A chave de API do Gemini será lida no Render.
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") 
 
 # Modelo e Endpoint
-# 🚀 MODELO ESCOLHIDO: GPT-2 (a versão mais simples e estável para free tier)
-HF_MODEL_NAME = "gpt2"
-HF_API_URL = f"https://api-inference.huggingface.co/models/{HF_MODEL_NAME}"
+GEMINI_MODEL = "gemini-2.5-flash"
+# O endpoint usa a chave como um parâmetro de consulta (Query Parameter)
+GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
+
 
 # --- Rotas da Aplicação ---
 
@@ -28,13 +29,12 @@ def serve_index():
     """
     Rota que serve o arquivo index.html, que está dentro da pasta 'static' no container.
     """
-    # Usamos app.static_folder para garantir que o caminho seja encontrado.
     return send_from_directory(app.static_folder, 'index.html')
 
 @app.route('/api/ask', methods=['POST'])
 def ask_ai_agent():
     """
-    Recebe uma pergunta, envia para o Agente LexAI e retorna a resposta.
+    Recebe uma pergunta, envia para a Gemini API e retorna a resposta.
     """
     data = request.get_json()
     prompt = data.get('prompt')
@@ -42,78 +42,64 @@ def ask_ai_agent():
     if not prompt:
         return jsonify({"error": "Prompt não fornecido"}), 400
 
-    if not HF_TOKEN:
-        print("AVISO: Variável HF_API_TOKEN não está configurada.")
+    if not GEMINI_API_KEY:
+        return jsonify({"error": "Erro: Variável GEMINI_API_KEY não configurada no Render."}), 500
         
     print(f"Recebendo prompt: '{prompt}'")
 
-    # Headers para autenticação (Chave Secreta via Variável de Ambiente)
-    headers = {
-        "Authorization": f"Bearer {HF_TOKEN}",
-        "Content-Type": "application/json"
-    }
-    
-    # Payload no formato da API de Inferência para Text Generation
+    # Payload no formato da Gemini API
     payload = {
-        "inputs": prompt,
-        "parameters": {
-            "max_new_tokens": 100, 
+        "contents": [{
+            "parts": [{"text": prompt}]
+        }],
+        "config": {
             "temperature": 0.7,
-            "return_full_text": False 
+            "maxOutputTokens": 300 
         }
     }
-    
-    response = None # Inicializa a variável response fora do try/except
+
+    response = None
 
     try:
-        # Envia a requisição para o servidor Hugging Face
+        # Envia a requisição para a Gemini API
         response = requests.post(
-            HF_API_URL, 
-            headers=headers,
+            GEMINI_API_URL, 
             json=payload,
-            timeout=60 # Timeout de 60 segundos para evitar que o Render trave em um modelo em sleep
+            timeout=60
         )
         
-        # Lançar erro para 4xx ou 5xx
-        response.raise_for_status() 
+        response.raise_for_status() # Lançar exceção para status 4xx ou 5xx
         
-        hf_response = response.json()
+        gemini_response = response.json()
         
-        # Extrai o texto gerado (a API retorna uma lista)
-        if hf_response and isinstance(hf_response, list) and 'generated_text' in hf_response[0]:
-            full_response = hf_response[0]['generated_text'].strip()
+        # Extrair o texto gerado
+        candidates = gemini_response.get('candidates')
+        if candidates:
+            # A resposta está em candidates[0].content.parts[0].text
+            full_response = candidates[0]['content']['parts'][0]['text']
         else:
-            # Caso o retorno não seja o formato esperado
-            full_response = f"Desculpe, a IA retornou um formato inesperado. Detalhes do retorno: {str(hf_response)}"
+            # Captura de erros de filtro de conteúdo, etc.
+            full_response = f"Desculpe, a Gemini API retornou um erro inesperado. Detalhes: {str(gemini_response)}"
         
-        print(f"Resposta obtida com sucesso do modelo {HF_MODEL_NAME}.")
+        print(f"Resposta obtida com sucesso do modelo {GEMINI_MODEL}.")
 
         return jsonify({"answer": full_response})
 
     except requests.exceptions.RequestException as e:
-        # --- Tratamento de Erros da API de Inferência ---
-        error_details = "Sem detalhes na resposta JSON."
+        # --- Tratamento de Erros da API Gemini ---
+        error_details = "Erro de comunicação ou rede."
         status_code = "Desconhecido"
         
         if response is not None:
              status_code = response.status_code
              try:
-                 # Tenta ler o JSON de erro
-                 error_details = response.json().get('error', 'Sem detalhes na resposta JSON.')
-             except requests.exceptions.JSONDecodeError:
-                 # Se não for JSON, pegamos o texto puro
-                 error_details = response.text 
+                 # Tenta ler o JSON de erro do Google (formato específico)
+                 error_details = response.json().get('error', {}).get('message', 'Erro desconhecido da API.')
+             except:
+                 error_details = response.text
+
+        error_msg = f"Houve um problema de comunicação com a Gemini API (Status {status_code}). Detalhes: {error_details}"
         
-        error_msg = f"Houve um problema de comunicação com o Agente de IA (Status {status_code})."
-        
-        if "is currently loading" in error_details or status_code in [503, 504]:
-            error_msg += "\nO modelo está em modo de espera (sleep mode) ou carregando. Por favor, tente novamente em 15 segundos."
-        elif status_code == 401:
-            error_msg += "\nErro de Autorização: Verifique se a variável HF_API_TOKEN é a sua nova chave API."
-        elif status_code == 404:
-            # O 404 no Hugging Face geralmente significa que o endpoint gratuito foi removido.
-            error_msg += f"\nErro Crítico: Endpoint {HF_MODEL_NAME} removido ou indisponível para o free tier."
-            
         print(f"ERRO DE REQUISIÇÃO IA: {e}")
         return jsonify({"error": error_msg}), 500
     except Exception as e:
