@@ -54,8 +54,8 @@ def ask_ai_agent():
         }],
         "generationConfig": {
             "temperature": 0.7,
-            # 💡 CORREÇÃO AQUI: Aumentando o limite máximo de tokens para 1024.
-            "maxOutputTokens": 1024 
+            # 💡 CORREÇÃO AQUI: Aumentando o limite máximo de tokens para 4096.
+            "maxOutputTokens": 4096 
         }
     }
 
