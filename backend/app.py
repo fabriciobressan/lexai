@@ -1,4 +1,4 @@
-# Arquivo: backend/app.py (Versão Corrigida para Hugging Face Gemma 2B)
+# Arquivo: backend/app.py (Versão Final e Robusta para Free Tier)
 
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
@@ -7,22 +7,16 @@ import os
 import json
 
 # --- Configurações da Aplicação ---
-# O Flask buscará arquivos estáticos em uma pasta chamada 'static'
 app = Flask(__name__) 
 CORS(app) 
 
 # --- Variáveis de Ambiente ---
-# Porta de execução, lendo do ambiente Render
 PORT = int(os.environ.get("PORT", 5001))
-
-# O TOKEN de API será lido da variável de ambiente no Render (HF_API_TOKEN).
 HF_TOKEN = os.environ.get("HF_API_TOKEN") 
 
-# 🚀 ALTERAÇÃO: Trocando para Google Gemma 2B (muito estável e melhor que GPT-2 para chat)
-HF_MODEL_NAME = "google/gemma-2b-it"
-# O endpoint é gerado com base no nome do modelo:
+# 🚀 ALTERAÇÃO FINAL: Trocando para GPT-2 Medium (muito leve e quase sempre ativo)
+HF_MODEL_NAME = "gpt2-medium"
 HF_API_URL = f"https://api-inference.huggingface.co/models/{HF_MODEL_NAME}"
-
 
 # --- Rotas da Aplicação ---
 
@@ -31,6 +25,7 @@ def serve_index():
     """
     Rota que serve o arquivo index.html, que está dentro da pasta 'static' no container.
     """
+    # Usamos app.static_folder para garantir que o caminho seja encontrado.
     return send_from_directory(app.static_folder, 'index.html')
 
 @app.route('/api/ask', methods=['POST'])
@@ -44,63 +39,75 @@ def ask_ai_agent():
     if not prompt:
         return jsonify({"error": "Prompt não fornecido"}), 400
 
-    # O Token de API é opcional para alguns modelos públicos, mas o header é sempre enviado.
     if not HF_TOKEN:
         print("AVISO: Variável HF_API_TOKEN não está configurada.")
         
     print(f"Recebendo prompt: '{prompt}'")
 
-    # Headers para autenticação (Chave Secreta via Variável de Ambiente)
     headers = {
-        # O token é injetado aqui. Se for None, será 'Bearer None', mas o HF pode aceitar.
         "Authorization": f"Bearer {HF_TOKEN}",
         "Content-Type": "application/json"
     }
     
     # Payload no formato da API de Inferência para Text Generation
-    # 🐛 CORREÇÃO AQUI: Usando o prompt diretamente, sem tags desnecessárias.
     payload = {
         "inputs": prompt,
         "parameters": {
-            "max_new_tokens": 150, 
+            "max_new_tokens": 100, 
             "temperature": 0.7,
-            # Não retornar o prompt completo na resposta
             "return_full_text": False 
         }
     }
 
     try:
         # Envia a requisição para o servidor Hugging Face
+        # 💡 Adicionando timeout de 60 segundos para evitar que o Render trave
         response = requests.post(
             HF_API_URL, 
             headers=headers,
-            json=payload
+            json=payload,
+            timeout=60 
         )
-        response.raise_for_status() # Lança exceção para status de erro (4xx ou 5xx)
         
-        # O retorno é uma lista com o objeto de resposta
+        # Lançar erro para 4xx ou 5xx
+        response.raise_for_status() 
+        
         hf_response = response.json()
         
         # Extrai o texto da resposta
         if hf_response and isinstance(hf_response, list) and 'generated_text' in hf_response[0]:
             full_response = hf_response[0]['generated_text'].strip()
         else:
-            full_response = "Desculpe, a IA retornou uma resposta inesperada. Detalhes: " + str(hf_response)
+            # Caso o retorno não seja a lista esperada
+            full_response = f"Desculpe, a IA retornou um formato inesperado. Detalhes do retorno: {str(hf_response)}"
         
         print(f"Resposta obtida com sucesso do modelo {HF_MODEL_NAME}.")
 
         return jsonify({"answer": full_response})
 
     except requests.exceptions.RequestException as e:
-        # Tenta extrair detalhes do erro para ajudar na depuração
-        error_details = "Sem detalhes."
-        try:
-             error_details = response.json().get('error', 'Sem detalhes.')
-        except:
-             pass
-
+        error_details = "Sem detalhes na resposta JSON."
+        status_code = "Desconhecido"
+        
+        if response is not None:
+             status_code = response.status_code
+             try:
+                 # Tenta ler o JSON de erro se ele existir (muitas vezes é um 503 com JSON)
+                 error_details = response.json().get('error', 'Sem detalhes na resposta JSON.')
+             except requests.exceptions.JSONDecodeError:
+                 # Se não for JSON, pegamos o texto puro, que pode ser uma mensagem de "Loading"
+                 error_details = response.text 
+        
+        error_msg = f"Houve um problema de comunicação com o Agente LexAI (Status {status_code})."
+        
+        # 💡 Mensagem específica para o free tier
+        if "is currently loading" in error_details or status_code in ["503", "504"]:
+            error_msg += "\nO modelo está em modo de espera (sleep mode) ou carregando. Por favor, tente novamente em 15 segundos."
+        elif status_code == 401:
+            error_msg += "\nErro de Autorização: Verifique se a variável HF_API_TOKEN está correta no Render."
+            
         print(f"ERRO DE REQUISIÇÃO IA: {e}")
-        return jsonify({"error": f"Erro de API no Hugging Face. Detalhes: {error_details}"}), 500
+        return jsonify({"error": error_msg}), 500
     except Exception as e:
         print(f"Erro inesperado: {e}")
         return jsonify({"error": f"Erro interno no servidor: {e}"}), 500
